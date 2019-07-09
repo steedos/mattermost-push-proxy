@@ -4,7 +4,11 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/appleboy/go-fcm"
@@ -55,43 +59,145 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 
 	incrementNotificationTotal(PUSH_NOTIFY_ANDROID, pushType)
 
-	fcmMsg := &fcm.Message{
-		To:       msg.DeviceId,
-		Data:     data,
-		Priority: "high",
-	}
+	pushDeviceID := msg.DeviceId
 
-	if len(me.AndroidPushSettings.AndroidApiKey) > 0 {
-		sender, err := fcm.NewClient(me.AndroidPushSettings.AndroidApiKey)
+	if strings.Contains(pushDeviceID, "huawei:") {
+		clientID := me.AndroidPushSettings.HUAWEIAPPID
+		clientSecret := me.AndroidPushSettings.HUAWEIAPPSECRET
+		accessTokenURL := "https://login.cloud.huawei.com/oauth2/v2/token"
+
+		resp, err := http.Post(accessTokenURL,
+			"application/x-www-form-urlencoded",
+			strings.NewReader("grant_type=client_credentials&client_secret="+clientSecret+"&client_id="+clientID))
 		if err != nil {
-			incrementFailure(PUSH_NOTIFY_ANDROID, pushType, "invalid ApiKey")
-			return NewErrorPushResponse(err.Error())
+			fmt.Println(err)
+			return NewErrorPushResponse("huawei: get access_token error")
 		}
 
-		LogInfo(fmt.Sprintf("Sending android push notification for device=%v and type=%v", me.AndroidPushSettings.Type, msg.Type))
+		defer resp.Body.Close()
 
-		start := time.Now()
-		resp, err := sender.SendWithRetry(fcmMsg, 2)
-		observerNotificationResponse(PUSH_NOTIFY_ANDROID, time.Since(start).Seconds())
+		body, err := ioutil.ReadAll(resp.Body)
 
 		if err != nil {
-			LogError(fmt.Sprintf("Failed to send FCM push sid=%v did=%v err=%v type=%v", msg.ServerId, msg.DeviceId, err, me.AndroidPushSettings.Type))
-			incrementFailure(PUSH_NOTIFY_ANDROID, pushType, "unknown transport error")
-			return NewErrorPushResponse("unknown transport error")
+			// handle error
+			fmt.Println(err)
+			return NewErrorPushResponse("huawei: read access_token error")
 		}
+		var dat map[string]interface{}
+		if err := json.Unmarshal(body, &dat); err == nil {
+			var r http.Request
+			t := time.Now()
+			token := strings.Trim(pushDeviceID, "android_rn:huawei:")
+			deviceTokenList := []string{token}
+			deviceTokenListBytes, err := json.Marshal(deviceTokenList)
+			if err != nil {
+				fmt.Println(err)
+			}
+			data["google.message_id"] = "111"
+			data["content"] = data["message"]
+			data["title"] = msg.SenderName
+			var payloadMap = map[string]interface{}{
+				"hps": map[string]interface{}{
+					"msg": map[string]interface{}{
+						"type": 1,
+						"body": data,
+					},
+				},
+			}
+			payloadBytes, err := json.Marshal(payloadMap)
+			if err != nil {
+				fmt.Println(err)
+			}
+			r.ParseForm()
+			r.Form.Add("access_token", fmt.Sprint(dat["access_token"]))
+			r.Form.Add("nsp_svc", "openpush.message.api.send")
+			r.Form.Add("nsp_ts", string(t.Unix()))
+			r.Form.Add("device_token_list", string(deviceTokenListBytes))
+			r.Form.Add("payload", string(payloadBytes))
+			bodystr := strings.TrimSpace(r.Form.Encode())
 
-		if resp.Failure > 0 {
-			fcmError := resp.Results[0].Error
-
-			if fcmError == fcm.ErrInvalidRegistration || fcmError == fcm.ErrNotRegistered || fcmError == fcm.ErrMissingRegistration {
-				LogInfo(fmt.Sprintf("Android response failure sending remove code: %v type=%v", resp, me.AndroidPushSettings.Type))
-				incrementRemoval(PUSH_NOTIFY_ANDROID, pushType, fcmError.Error())
-				return NewRemovePushResponse()
+			nspCtxMap := map[string]interface{}{
+				"ver":   "1",
+				"appId": clientID,
 			}
 
-			LogError(fmt.Sprintf("Android response failure: %v type=%v", resp, me.AndroidPushSettings.Type))
-			incrementFailure(PUSH_NOTIFY_ANDROID, pushType, fcmError.Error())
-			return NewErrorPushResponse(fcmError.Error())
+			nspCtxBytes, err := json.Marshal(nspCtxMap)
+			if err != nil {
+				fmt.Println(err)
+			}
+			pushURL := "https://api.push.hicloud.com/pushsend.do?nsp_ctx=" + string(nspCtxBytes)
+			resp, err := http.Post(pushURL,
+				"application/x-www-form-urlencoded",
+				strings.NewReader(bodystr))
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			defer resp.Body.Close()
+
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				// handle error
+				fmt.Println(err)
+			}
+
+			// fmt.Println(string(body))
+
+			var result map[string]interface{}
+			if err := json.Unmarshal(body, &result); err == nil {
+				if result["code"] != "80000000" {
+					fmt.Println(string(body))
+					return NewErrorPushResponse("huawei:  push error")
+				}
+			} else {
+				fmt.Println(string(body))
+				return NewErrorPushResponse("huawei:  push error")
+			}
+		} else {
+			fmt.Println(err)
+		}
+	} else if strings.Contains(pushDeviceID, "xiaomi:") {
+
+	} else {
+		fcmMsg := &fcm.Message{
+			To:       msg.DeviceId,
+			Data:     data,
+			Priority: "high",
+		}
+
+		if len(me.AndroidPushSettings.AndroidApiKey) > 0 {
+
+			sender, err := fcm.NewClient(me.AndroidPushSettings.AndroidApiKey)
+			if err != nil {
+				incrementFailure(PUSH_NOTIFY_ANDROID, pushType, "invalid ApiKey")
+				return NewErrorPushResponse(err.Error())
+			}
+
+			LogInfo(fmt.Sprintf("Sending android push notification for device=%v and type=%v", me.AndroidPushSettings.Type, msg.Type))
+
+			start := time.Now()
+			resp, err := sender.SendWithRetry(fcmMsg, 2)
+			observerNotificationResponse(PUSH_NOTIFY_ANDROID, time.Since(start).Seconds())
+
+			if err != nil {
+				LogError(fmt.Sprintf("Failed to send FCM push sid=%v did=%v err=%v type=%v", msg.ServerId, msg.DeviceId, err, me.AndroidPushSettings.Type))
+				incrementFailure(PUSH_NOTIFY_ANDROID, pushType, "unknown transport error")
+				return NewErrorPushResponse("unknown transport error")
+			}
+
+			if resp.Failure > 0 {
+				fcmError := resp.Results[0].Error
+
+				if fcmError == fcm.ErrInvalidRegistration || fcmError == fcm.ErrNotRegistered || fcmError == fcm.ErrMissingRegistration {
+					LogInfo(fmt.Sprintf("Android response failure sending remove code: %v type=%v", resp, me.AndroidPushSettings.Type))
+					incrementRemoval(PUSH_NOTIFY_ANDROID, pushType, fcmError.Error())
+					return NewRemovePushResponse()
+				}
+
+				LogError(fmt.Sprintf("Android response failure: %v type=%v", resp, me.AndroidPushSettings.Type))
+				incrementFailure(PUSH_NOTIFY_ANDROID, pushType, fcmError.Error())
+				return NewErrorPushResponse(fcmError.Error())
+			}
 		}
 	}
 

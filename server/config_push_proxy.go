@@ -28,8 +28,10 @@ type ApplePushSettings struct {
 }
 
 type AndroidPushSettings struct {
-	Type          string
-	AndroidApiKey string
+	Type            string
+	AndroidApiKey   string
+	HUAWEIAPPID     string
+	HUAWEIAPPSECRET string
 }
 
 var CfgPP *ConfigPushProxy = &ConfigPushProxy{}
