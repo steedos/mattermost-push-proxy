@@ -22,6 +22,8 @@ RUN mkdir -p /mattermost-push-proxy \
 
 WORKDIR /mattermost-push-proxy
 
+RUN chmod 755 /mattermost-push-proxy/bin/mattermost-push-proxy
+
 COPY entrypoint.sh /
 
 EXPOSE 8066
