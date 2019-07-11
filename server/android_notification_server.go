@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -93,7 +94,7 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 			if err != nil {
 				fmt.Println(err)
 			}
-			data["google.message_id"] = "111"
+			data["google.message_id"] = strconv.FormatInt(t.Unix(), 10)
 			data["content"] = data["message"]
 			data["title"] = msg.SenderName
 			var payloadMap = map[string]interface{}{
@@ -111,7 +112,7 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 			r.ParseForm()
 			r.Form.Add("access_token", fmt.Sprint(dat["access_token"]))
 			r.Form.Add("nsp_svc", "openpush.message.api.send")
-			r.Form.Add("nsp_ts", string(t.Unix()))
+			r.Form.Add("nsp_ts", strconv.FormatInt(t.Unix(), 10))
 			r.Form.Add("device_token_list", string(deviceTokenListBytes))
 			r.Form.Add("payload", string(payloadBytes))
 			bodystr := strings.TrimSpace(r.Form.Encode())
@@ -160,7 +161,8 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 		pushURL := "https://api.xmpush.xiaomi.com/v3/message/regid"
 		appSecret := me.AndroidPushSettings.XIAOMIAPPSECRET
 		registrationID := strings.Trim(pushDeviceID, "android_rn:xiaomi:")
-		data["google.message_id"] = "111"
+		t := time.Now()
+		data["google.message_id"] = strconv.FormatInt(t.Unix(), 10)
 		var r http.Request
 		dataBytes, err := json.Marshal(data)
 		if err != nil {
