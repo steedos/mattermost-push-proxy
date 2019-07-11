@@ -32,6 +32,7 @@ type AndroidPushSettings struct {
 	AndroidApiKey   string
 	HUAWEIAPPID     string
 	HUAWEIAPPSECRET string
+	XIAOMIAPPSECRET string
 }
 
 var CfgPP *ConfigPushProxy = &ConfigPushProxy{}

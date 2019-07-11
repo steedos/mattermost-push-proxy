@@ -157,6 +157,61 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 			fmt.Println(err)
 		}
 	} else if strings.Contains(pushDeviceID, "xiaomi:") {
+		pushURL := "https://api.xmpush.xiaomi.com/v3/message/regid"
+		appSecret := me.AndroidPushSettings.XIAOMIAPPSECRET
+		registrationID := strings.Trim(pushDeviceID, "android_rn:xiaomi:")
+		data["google.message_id"] = "111"
+		var r http.Request
+		dataBytes, err := json.Marshal(data)
+		if err != nil {
+			fmt.Println(err)
+		}
+		r.ParseForm()
+		r.Form.Add("payload", string(dataBytes))
+		r.Form.Add("restricted_package_name", "com.steedos.messenger")
+		r.Form.Add("pass_through", "1")
+		r.Form.Add("title", data["sender_name"].(string))
+		r.Form.Add("description", data["message"].(string))
+		r.Form.Add("notify_type", "-1")
+		r.Form.Add("registration_id", registrationID)
+
+		bodystr := strings.TrimSpace(r.Form.Encode())
+
+		client := &http.Client{}
+		req, err := http.NewRequest("POST", pushURL, strings.NewReader(bodystr))
+		if err != nil {
+			// handle error
+			fmt.Println(err)
+		}
+
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Authorization", "key="+appSecret)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			// handle error
+			fmt.Println(err)
+		}
+
+		defer resp.Body.Close()
+
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			// handle error
+			fmt.Println(err)
+		}
+
+		// fmt.Println(string(body))
+		var result map[string]interface{}
+		if err := json.Unmarshal(body, &result); err == nil {
+			if result["result"] != "ok" {
+				fmt.Println(string(body))
+				return NewErrorPushResponse("xiaomi:  push error")
+			}
+		} else {
+			fmt.Println(string(body))
+			return NewErrorPushResponse("xiaomi:  push error")
+		}
 
 	} else {
 		fcmMsg := &fcm.Message{
