@@ -8,5 +8,5 @@ services:
     ports:
       - "8066:8066"
     volumes:
-      - config:/config
-      - certs:/certs
+      - ./config:/config
+      - ./certs:/certs
