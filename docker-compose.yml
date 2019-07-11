@@ -1,0 +1,12 @@
+version: "2"
+
+services:
+
+  steedos:
+    build: docker
+    restart: unless-stopped
+    ports:
+      - "8066:8066"
+    volumes:
+      - config:/config
+      - certs:/certs

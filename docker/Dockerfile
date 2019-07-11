@@ -14,7 +14,7 @@ RUN apt-get update \
 
 RUN mkdir -p /mattermost-push-proxy \
     && cd /mattermost-push-proxy \
-    && wget https://github.com/mattermost/mattermost-push-proxy/releases/download/v$APP_VERSION/mattermost-push-proxy-$APP_VERSION.tar.gz \
+    && wget https://www-steedos-com.oss-cn-beijing.aliyuncs.com/apps/messenger/push-proxy/mattermost-push-proxy-$APP_VERSION.tar.gz \
     && tar -xvzf mattermost-push-proxy-$APP_VERSION.tar.gz \
     && rm mattermost-push-proxy-$APP_VERSION.tar.gz \
     && mv mattermost-push-proxy/* ./ \

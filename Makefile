@@ -27,7 +27,7 @@ update-dependencies-after-release:
 	@echo Run this to updated the go lang dependencies after a major release
 	dep ensure -update
 
-build-server: gofmt govet
+build-server: 
 	@echo Building proxy push server
 
 	rm -Rf $(DIST_ROOT)
@@ -35,6 +35,9 @@ build-server: gofmt govet
 
 	$(GO) build $(GOFLAGS) ./...
 	$(GO) install $(GOFLAGS) ./...
+
+	mkdir -p $(DIST_PATH)/bin;
+	env GOOS=linux GOARCH=amd64 $(GO) build -o $(DIST_PATH)/bin/mattermost-push-proxy;
 
 gofmt:
 	@echo GOFMT
@@ -57,8 +60,8 @@ govet:
 package:
 	@ echo Packaging push proxy
 
-	mkdir -p $(DIST_PATH)/bin
-	cp $(GOPATH)/bin/mattermost-push-proxy $(DIST_PATH)/bin
+	# mkdir -p $(DIST_PATH)/bin
+	# cp $(GOPATH)/bin/mattermost-push-proxy $(DIST_PATH)/bin
 
 	cp -RL config $(DIST_PATH)/config
 	touch $(DIST_PATH)/config/build.txt
