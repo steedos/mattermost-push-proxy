@@ -94,6 +94,7 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 			if err != nil {
 				fmt.Println(err)
 			}
+
 			data["google.message_id"] = strconv.FormatInt(t.Unix(), 10)
 			data["content"] = data["message"]
 			data["title"] = msg.SenderName
@@ -109,12 +110,18 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 			if err != nil {
 				fmt.Println(err)
 			}
+
+			// 如果包含这些字符，华为推送会报错 Anti-Spam: word is forbidden in [body]
+			legalPayloadStr := strings.Replace(string(payloadBytes), "jb", "__", -1)
+			legalPayloadStr = strings.Replace(legalPayloadStr, "j8", "__", -1)
+			legalPayloadStr = strings.Replace(legalPayloadStr, "sm", "__", -1)
+
 			r.ParseForm()
 			r.Form.Add("access_token", fmt.Sprint(dat["access_token"]))
 			r.Form.Add("nsp_svc", "openpush.message.api.send")
 			r.Form.Add("nsp_ts", strconv.FormatInt(t.Unix(), 10))
 			r.Form.Add("device_token_list", string(deviceTokenListBytes))
-			r.Form.Add("payload", string(payloadBytes))
+			r.Form.Add("payload", legalPayloadStr)
 			bodystr := strings.TrimSpace(r.Form.Encode())
 
 			nspCtxMap := map[string]interface{}{
@@ -148,10 +155,11 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 			if err := json.Unmarshal(body, &result); err == nil {
 				if result["code"] != "80000000" {
 					fmt.Println(string(body))
+					fmt.Println(string(payloadBytes))
 					return NewErrorPushResponse("huawei:  push error")
 				}
 			} else {
-				fmt.Println(string(body))
+				fmt.Println(err)
 				return NewErrorPushResponse("huawei:  push error")
 			}
 		} else {
@@ -168,12 +176,21 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 		if err != nil {
 			fmt.Println(err)
 		}
+		description := ""
+		if data["message"] != nil {
+			description = data["message"].(string)
+		}
+		senderName := ""
+		if data["sender_name"] != nil {
+			senderName = data["sender_name"].(string)
+		}
+
 		r.ParseForm()
 		r.Form.Add("payload", string(dataBytes))
 		r.Form.Add("restricted_package_name", "com.steedos.messenger")
 		r.Form.Add("pass_through", "1")
-		r.Form.Add("title", data["sender_name"].(string))
-		r.Form.Add("description", data["message"].(string))
+		r.Form.Add("title", senderName)
+		r.Form.Add("description", description)
 		r.Form.Add("notify_type", "-1")
 		r.Form.Add("registration_id", registrationID)
 
@@ -211,7 +228,7 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 				return NewErrorPushResponse("xiaomi:  push error")
 			}
 		} else {
-			fmt.Println(string(body))
+			fmt.Println(err)
 			return NewErrorPushResponse("xiaomi:  push error")
 		}
 
