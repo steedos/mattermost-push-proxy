@@ -88,7 +88,9 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 		if err := json.Unmarshal(body, &dat); err == nil {
 			var r http.Request
 			t := time.Now()
+			fmt.Println("pushDeviceID: ", pushDeviceID)
 			token := strings.Replace(pushDeviceID, "android_rn:huawei:", "", 1)
+			fmt.Println("token: ", token)
 			deviceTokenList := []string{token}
 			deviceTokenListBytes, err := json.Marshal(deviceTokenList)
 			if err != nil {
@@ -168,7 +170,7 @@ func (me *AndroidNotificationServer) SendNotification(msg *PushNotification) Pus
 	} else if strings.Contains(pushDeviceID, "xiaomi:") {
 		pushURL := "https://api.xmpush.xiaomi.com/v3/message/regid"
 		appSecret := me.AndroidPushSettings.XIAOMIAPPSECRET
-		registrationID := strings.Replace(pushDeviceID, "android_rn:xiaomi:", "", 1)
+		registrationID := strings.Replace(pushDeviceID, "xiaomi:", "", 1)
 		t := time.Now()
 		data["google.message_id"] = strconv.FormatInt(t.Unix(), 10)
 		var r http.Request
